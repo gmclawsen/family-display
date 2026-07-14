@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Family">
+<title>Family Board</title>
+<style>
+  :root{
+    --bg:#f4f1ea; --panel:#ffffff; --ink:#2b2b2b; --muted:#8a8378; --line:#e6e1d6;
+    --kai:#2f7cc4; --rainier:#3a9d7a; --done:#b9b3a7;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;height:100%;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg);color:var(--ink);
+    display:flex;flex-direction:column;height:100dvh;overflow:hidden;
+  }
+  header{padding:12px 22px;display:flex;align-items:baseline;gap:16px;border-bottom:1px solid var(--line);flex:0 0 auto;}
+  .day{font-size:28px;font-weight:800;letter-spacing:.5px;}
+  .date{font-size:17px;color:var(--muted);font-weight:600;}
+  .status{margin-left:auto;font-size:13px;color:var(--muted);display:flex;align-items:center;gap:10px;}
+  .dot{width:9px;height:9px;border-radius:50%;background:#c9c3b6;}
+  .dot.ok{background:#4caf50;} .dot.err{background:#e2604a;}
+  #signin{
+    display:none;border:0;background:var(--ink);color:#fff;font-weight:700;font-size:13px;
+    padding:7px 14px;border-radius:20px;cursor:pointer;
+  }
+
+  main{flex:1 1 auto;min-height:0;display:flex;gap:12px;padding:12px;}
+  .tasks{flex:0 0 44%;min-width:0;display:flex;gap:12px;}
+  .col{flex:1;background:var(--panel);border:1px solid var(--line);border-radius:16px;
+    display:flex;flex-direction:column;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.04);}
+  .col-head{padding:12px 16px;font-size:22px;font-weight:800;color:#fff;display:flex;align-items:center;gap:10px;}
+  .col.c0 .col-head{background:var(--kai);}
+  .col.c1 .col-head{background:var(--rainier);}
+  .col.c2 .col-head{background:#c58a2f;}
+  .col.c3 .col-head{background:#8a5ac5;}
+  .col-head .count{margin-left:auto;font-size:15px;font-weight:700;opacity:.9;}
+  .list{list-style:none;margin:0;padding:8px;overflow-y:auto;flex:1;-webkit-overflow-scrolling:touch;}
+  .task{display:flex;align-items:center;gap:14px;padding:13px 12px;margin:4px 2px;border-radius:12px;
+    font-size:19px;font-weight:600;user-select:none;cursor:pointer;transition:background .12s;min-height:54px;}
+  .task:active{background:#f6f3ec;}
+  .box{flex:0 0 auto;width:28px;height:28px;border-radius:9px;border:2.5px solid var(--line);
+    display:flex;align-items:center;justify-content:center;transition:all .12s;}
+  .col.c0 .task.done .box{background:var(--kai);border-color:var(--kai);}
+  .col.c1 .task.done .box{background:var(--rainier);border-color:var(--rainier);}
+  .col.c2 .task.done .box{background:#c58a2f;border-color:#c58a2f;}
+  .col.c3 .task.done .box{background:#8a5ac5;border-color:#8a5ac5;}
+  .box svg{width:17px;height:17px;stroke:#fff;stroke-width:3.5;fill:none;
+    stroke-linecap:round;stroke-linejoin:round;opacity:0;transition:opacity .12s;}
+  .task.done .box svg{opacity:1;}
+  .label{flex:1;transition:color .15s;}
+  .task.done .label{color:var(--done);text-decoration:line-through;text-decoration-thickness:2px;}
+  .msg{color:var(--muted);font-size:14px;padding:16px;text-align:center;line-height:1.5;}
+
+  .cal-wrap{flex:1 1 56%;min-width:0;}
+  .cal-card{height:100%;background:var(--panel);border:1px solid var(--line);border-radius:16px;
+    overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.04);}
+  .cal-card iframe{width:100%;height:100%;border:0;display:block;}
+  .cal-missing{height:100%;display:flex;align-items:center;justify-content:center;text-align:center;
+    padding:24px;color:var(--muted);font-size:16px;line-height:1.5;}
+
+  footer{flex:0 0 auto;text-align:center;font-size:12px;color:var(--muted);padding:0 0 7px;}
+
+  @media (orientation:portrait){
+    main{flex-direction:column;}
+    .tasks{flex-basis:45%;order:2;} .cal-wrap{order:1;}
+  }
+</style>
+</head>
+<body>
+  <header>
+    <div class="day" id="dayName">—</div>
+    <div class="date" id="dateStr">—</div>
+    <div class="status">
+      <button id="signin">Sign in</button>
+      <span class="dot" id="dot"></span><span id="statusText">Starting…</span>
+    </div>
+  </header>
+
+  <main>
+    <div class="tasks" id="tasks"></div>
+    <div class="cal-wrap"><div class="cal-card" id="calCard"></div></div>
+  </main>
+
+  <footer id="foot">Family Board</footer>
+
+<script>
+/* =========================================================================
+   ▼▼▼  EDIT THIS SECTION  ▼▼▼
+   ========================================================================= */
+
+/* 1) OAuth Client ID from Google Cloud Console (see the setup guide).
+      Looks like: 1234567890-abc123def456.apps.googleusercontent.com */
+const CLIENT_ID = "";
+
+/* 2) FAMILY CALENDAR — the family Google account EMAIL (easiest),
+      or a full "Public URL to this calendar" / src=... value. */
+const CALENDAR_SRC = "";
+
+/* 3) COLUMNS — each maps to a Google Tasks list by its exact NAME
+      (as it appears in tasks.google.com). Order left→right. Add or remove entries. */
+const COLUMNS = [
+  { title: "Kai",     list: "Kai" },
+  { title: "Rainier", list: "Rainier" },
+];
+
+/* =========================================================================
+   ▲▲▲  END EDIT SECTION  ▲▲▲
+   ========================================================================= */
+
+const SCOPE = "https://www.googleapis.com/auth/tasks";
+const API = "https://tasks.googleapis.com/tasks/v1";
+const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
+
+let tokenClient=null, accessToken=null, tokenExpiry=0, listMap={};
+
+/* ---------- Header / status ---------- */
+function renderHeader(){
+  const d=new Date();
+  document.getElementById("dayName").textContent=d.toLocaleDateString(undefined,{weekday:"long"});
+  document.getElementById("dateStr").textContent=d.toLocaleDateString(undefined,{month:"long",day:"numeric"});
+}
+function setStatus(text,cls){
+  document.getElementById("statusText").textContent=text;
+  const dot=document.getElementById("dot"); dot.className="dot"+(cls?(" "+cls):"");
+}
+
+/* ---------- Calendar ---------- */
+function renderCalendar(){
+  const card=document.getElementById("calCard");
+  if(!CALENDAR_SRC){
+    card.innerHTML='<div class="cal-missing">Set <b>CALENDAR_SRC</b> near the top of this file '+
+                   'to your family Google account email (or its public calendar link).</div>';
+    return;
+  }
+  let src;
+  if(/^https?:\/\//i.test(CALENDAR_SRC)){
+    try{const u=new URL(CALENDAR_SRC);u.searchParams.set("mode","DAY");if(tz)u.searchParams.set("ctz",tz);src=u.toString();}
+    catch(e){src=CALENDAR_SRC;}
+  }else{
+    const p=new URLSearchParams({src:CALENDAR_SRC,mode:"DAY",showTitle:"0",showPrint:"0",showTabs:"0",
+      showCalendars:"0",showNav:"0",showDate:"0",wkst:"1",bgcolor:"%23ffffff"});
+    if(tz)p.set("ctz",tz);
+    src="https://calendar.google.com/calendar/embed?"+p.toString();
+  }
+  card.innerHTML='<iframe src="'+src+'" scrolling="no"></iframe>';
+}
+
+/* ---------- Auth (Google Identity Services token flow) ---------- */
+function onGisLoaded(){
+  if(!CLIENT_ID){
+    setStatus("Add CLIENT_ID in the file","err");
+    document.getElementById("tasks").innerHTML=
+      '<div class="msg">Open this file and paste your Google OAuth <b>CLIENT_ID</b> near the top, then reload. '+
+      'See the setup guide.</div>';
+    return;
+  }
+  tokenClient=google.accounts.oauth2.initTokenClient({
+    client_id:CLIENT_ID, scope:SCOPE,
+    callback:(resp)=>{
+      if(resp && resp.access_token){
+        accessToken=resp.access_token;
+        tokenExpiry=Date.now()+((resp.expires_in?resp.expires_in:3600)*1000)-90000;
+        document.getElementById("signin").style.display="none";
+        setStatus("Connected","ok");
+        loadTasks();
+      }else{
+        showSignIn("Sign-in needed");
+      }
+    },
+    error_callback:()=>showSignIn("Tap Sign in")
+  });
+  requestToken(true);            // try silent first
+}
+function requestToken(silent){
+  if(!tokenClient) return;
+  try{ tokenClient.requestAccessToken(silent?{prompt:""}:{prompt:"consent"}); }
+  catch(e){ showSignIn("Tap Sign in"); }
+}
+function showSignIn(text){
+  setStatus(text||"Sign in","err");
+  const b=document.getElementById("signin");
+  b.style.display="inline-block";
+  b.onclick=()=>requestToken(false);
+}
+async function ensureToken(){
+  if(!accessToken || Date.now()>tokenExpiry){ requestToken(true); }
+}
+
+/* ---------- Tasks API ---------- */
+async function api(path,opts){
+  const r=await fetch(API+path,Object.assign({},opts,{
+    headers:Object.assign({"Authorization":"Bearer "+accessToken,"Content-Type":"application/json"},(opts&&opts.headers)||{})
+  }));
+  if(r.status===401){ accessToken=null; requestToken(true); throw new Error("401"); }
+  if(!r.ok) throw new Error("api "+r.status);
+  return r.status===204?null:r.json();
+}
+
+async function loadTasks(){
+  if(!accessToken){ requestToken(true); return; }
+  try{
+    const lists=(await api("/users/@me/lists")).items||[];
+    listMap={}; lists.forEach(l=>{ listMap[l.title.trim().toLowerCase()]=l.id; });
+    const cols=[];
+    for(const c of COLUMNS){
+      const id=listMap[(c.list||"").trim().toLowerCase()];
+      let items=[];
+      if(id){
+        const data=await api("/lists/"+id+"/tasks?showCompleted=true&showHidden=true&maxResults=100");
+        items=(data.items||[]).filter(t=>!t.parent)
+          .sort((a,b)=>(a.position||"").localeCompare(b.position||""));
+      }
+      cols.push({title:c.title,listName:c.list,listId:id,items:items});
+    }
+    renderTasks(cols);
+    setStatus("Updated "+new Date().toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"}),"ok");
+  }catch(e){
+    if(String(e.message)!=="401") setStatus("Sync error — retrying","err");
+  }
+}
+
+const CHECK='<svg viewBox="0 0 24 24"><polyline points="4 12 10 18 20 6"></polyline></svg>';
+
+function renderTasks(cols){
+  const root=document.getElementById("tasks"); root.innerHTML="";
+  cols.forEach((col,ci)=>{
+    const el=document.createElement("div"); el.className="col c"+(ci%4);
+    const head=document.createElement("div"); head.className="col-head";
+    const done=col.items.filter(t=>t.status==="completed").length;
+    head.innerHTML='<span>'+esc(col.title)+'</span><span class="count">'+
+      (col.listId? done+"/"+col.items.length : "")+'</span>';
+    el.appendChild(head);
+    const ul=document.createElement("ul"); ul.className="list";
+    if(!col.listId){
+      ul.innerHTML='<li class="msg">No Google Tasks list named "'+esc(col.listName)+'". '+
+        'Create it in tasks.google.com or fix the name in the file.</li>';
+    }else if(col.items.length===0){
+      ul.innerHTML='<li class="msg">No tasks in this list.</li>';
+    }else{
+      col.items.forEach(task=>{
+        const li=document.createElement("li");
+        li.className="task"+(task.status==="completed"?" done":"");
+        li.innerHTML='<span class="box">'+CHECK+'</span><span class="label">'+esc(task.title||"(untitled)")+'</span>';
+        li.addEventListener("click",()=>toggle(col.listId,task,li,head));
+        ul.appendChild(li);
+      });
+    }
+    el.appendChild(ul); root.appendChild(el);
+  });
+}
+
+async function toggle(listId,task,li,head){
+  const completing=task.status!=="completed";
+  li.classList.toggle("done",completing);      // optimistic
+  try{
+    await ensureToken();
+    await api("/lists/"+listId+"/tasks/"+task.id,{
+      method:"PATCH",
+      body:JSON.stringify(completing?{status:"completed"}:{status:"needsAction"})
+    });
+    task.status=completing?"completed":"needsAction";
+    // update count
+    const c=head.querySelector(".count");
+    if(c && c.textContent.indexOf("/")>-1){
+      const ul=li.closest(".list");
+      const total=ul.querySelectorAll(".task").length;
+      const done=ul.querySelectorAll(".task.done").length;
+      c.textContent=done+"/"+total;
+    }
+  }catch(e){
+    li.classList.toggle("done",!completing);   // revert on failure
+    setStatus("Couldn't save — check connection","err");
+  }
+}
+
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+
+/* ---------- Timers ---------- */
+function scheduleMidnight(){
+  const now=new Date(); const next=new Date(now.getFullYear(),now.getMonth(),now.getDate()+1,0,0,5);
+  setTimeout(()=>location.reload(), next-now);
+}
+
+renderHeader();
+renderCalendar();
+scheduleMidnight();
+setInterval(()=>{ if(accessToken) loadTasks(); }, 3*60*1000);   // refresh tasks every 3 min
+setInterval(()=>{ if(tokenClient) requestToken(true); }, 50*60*1000); // silent token refresh
+
+document.addEventListener("visibilitychange",()=>{
+  if(!document.hidden){ renderHeader(); if(accessToken) loadTasks(); }
+});
+</script>
+<script src="https://accounts.google.com/gsi/client" onload="onGisLoaded()" async defer></script>
+</body>
+</html>
