@@ -109,9 +109,10 @@ const COLUMNS = [
   { title: "Rainier", list: "Rainier" },
 ];
 
-/* Day-grid hours always shown (it auto-expands for earlier/later events). */
-const DAY_START_HOUR = 7;
-const DAY_END_HOUR   = 21;
+/* Default visible window (8 AM–8 PM). The grid auto-expands for events
+   outside this range; you just scroll up/down to reach them. */
+const DAY_START_HOUR = 8;
+const DAY_END_HOUR   = 20;
 
 /* =========================================================================
    ▲▲▲  END EDIT SECTION  ▲▲▲
@@ -120,7 +121,7 @@ const DAY_END_HOUR   = 21;
 const SCOPE = "https://www.googleapis.com/auth/tasks https://www.googleapis.com/auth/calendar.readonly";
 const TASKS_API = "https://tasks.googleapis.com/tasks/v1";
 const CAL_API = "https://www.googleapis.com/calendar/v3";
-const HH = 54; // pixels per hour
+let HH = 54; // pixels per hour — recomputed each render so the default window fills the panel
 
 let tokenClient=null, accessToken=null, tokenExpiry=0;
 
@@ -304,6 +305,11 @@ function renderDay(events){
       allday.push({title:ev.summary||"(all day)",color:ev._color||"#2f7cc4"});
     }
   });
+  // Size each hour so the default window (DAY_START_HOUR–DAY_END_HOUR) fills the panel.
+  const cardH=(document.getElementById("calCard").clientHeight)||600;
+  const availH=Math.max(420, cardH-46-(allday.length?44:0)-14);
+  HH=Math.max(40, availH/(DAY_END_HOUR-DAY_START_HOUR));
+
   let minS=DAY_START_HOUR*60, maxE=DAY_END_HOUR*60;
   timed.forEach(t=>{ minS=Math.min(minS,t.start); maxE=Math.max(maxE,t.end); });
   const startH=Math.max(0,Math.floor(minS/60));
@@ -337,7 +343,7 @@ function renderDay(events){
   card._range={startH,endH};
   positionNow();
   const gs=document.getElementById("gridScroll");
-  if(gs){ const target=(Math.max(startH,new Date().getHours()-1)-startH)*HH; gs.scrollTop=Math.max(0,target); }
+  if(gs){ const target=(DAY_START_HOUR-startH)*HH; gs.scrollTop=Math.max(0,target); }
 }
 
 function positionNow(){
